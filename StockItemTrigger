@@ -1,0 +1,12 @@
+trigger StockItemTrigger on Stock_Item__c (before insert, before delete) {
+
+    // Before Insert Handling
+    if (Trigger.isBefore && Trigger.isInsert) {
+        stockItemTriggerHandler.onBeforeInsert(Trigger.new);
+    }
+
+    // Before Delete Handling
+    if (Trigger.isBefore && Trigger.isDelete) {
+        stockItemTriggerHandler.onBeforeDelete(Trigger.old);
+    }
+}
