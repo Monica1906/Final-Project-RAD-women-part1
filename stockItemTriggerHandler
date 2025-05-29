@@ -1,0 +1,82 @@
+public class stockItemTriggerHandler {
+    //Step 1:Before Insert Logic – Prevent duplicate Stock Item names
+    public static void onBeforeInsert(List<Stock_Item__c> newStockItems){
+        //need to collect the names of the StockItems
+     Set<String> newNames = new Set<String>();
+        for (Stock_Item__c stock : newStockItems){
+            if (stock.Item_Name__c != null){
+             newNames.add(stock.Item_Name__c); 
+              System.debug('Collected new name: ' + stock.Item_Name__c);
+            }
+        }
+//Step 2: Query existing items names
+Map<String, Stock_Item__c> existingItemsName = new Map<String, Stock_Item__c>();
+   for (Stock_Item__c exist: [SELECT Id, Item_Name__c FROM Stock_Item__c WHERE Item_Name__c IN :newNames]){
+            existingItemsName.put(exist.Item_Name__c, exist);
+           System.debug('Found existing Stock Item with name: ' + exist.Item_Name__c);
+
+        }
+//Step 3: Checking for duplicates and adding error if duplicated
+        for (Stock_Item__c stock: newStockItems){
+            if (stock.Item_Name__c != null && existingItemsName.containsKey(stock.Item_Name__c)){
+        		stock.addError('A stock Item with this name already exists');     
+                System.debug('Duplicate found: ' + stock.Name + ' → Error added');
+
+            }        
+        }
+    }
+     // Handler for before delete logic
+    public static void onBeforeDelete(List<Stock_Item__c> itemsToDelete) {
+//Step 4: Create a list to hold any new cases
+        List<Case> newCases = new List<Case>();
+//Step 5: loop through each StockItem and see if they need a case
+        for (Stock_Item__c stock:  itemsToDelete){
+            if(stock.Stock_on_Hand__c != null && stock.Stock_on_Hand__c != 0){
+                Case c = new Case();
+            c.Status = 'New';
+            c.Origin = 'System Trigger';
+            c.Subject = 'Stock item deleted with stock on hand';
+            c.Description = 'Deleted Stock Item details:\n' +
+                              'Record Id: ' + stock.Id + '\n' +
+                              'Name: ' + stock.Name + '\n' +
+                              'Stock on Hand: ' + stock.Stock_on_Hand__c;
+            newCases.add(c);
+            System.debug('Created Case for deleted item: ' + stock.Item_Name__c);
+
+            }
+    	}
+ // Step 6: Bulk insert cases
+    if (!newCases.isEmpty()) {
+        insert newCases;
+       System.debug('Inserted ' + newCases.size() + ' Case(s)');
+
+		}
+    }
+    //Step 7:This method will give the top 200 Stock Items records, based on that have a stock-on-hand count at or below their minimum stock level.
+ public static List<Stock_Item__c> getLowStockItems() {
+    // Step 8: Query stock items where stock on hand is below or equal to the minimum stock level
+    List<Stock_Item__c> allItems = [SELECT 
+                Id, 
+                Item_Name__c, 
+                Item_Stock_is_Low__c, 
+                Minimum_Stock_Level__c, 
+                Stock_on_Hand__c
+            FROM 
+                Stock_Item__c
+              LIMIT 200 ];
+ // Step 9: Create a list to hold only the items that are low in stock
+List<Stock_Item__c> lowStockItems = new List<Stock_Item__c>();
+ //Step 10: Looping over the Stock_Item__c as we need to compare the Stock_on_Hand__c to the Minimum_Stock_Level__c
+    
+     for (Stock_Item__c stock:allItems){
+         if (stock.Stock_on_Hand__c <= stock.Minimum_Stock_Level__c){
+           lowStockItems.add(stock);
+      System.debug('Low stock item found: ' + stock.Item_Name__c);
+
+         }
+     }
+System.debug('Found ' + lowStockItems.size() + ' low stock items');
+  // Step 4: Return the list
+     return lowStockItems;
+	}
+}
